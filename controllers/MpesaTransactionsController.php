@@ -76,24 +76,97 @@ class MpesaTransactionsController extends Controller
 
         if ($model->load(Yii::$app->request->post()) && $model->validate()) {
 
-            $model->setStatusToPending();
+            // First save the transaction as pending.
+            $model->status = MpesaTransactions::STATUS_PENDING;
 
-            if ($model->save(false)) {
-                Yii::$app->session->setFlash(
-                    'success',
-                    'Payment request recorded successfully. STK Push integration is our next step.'
-                );
-            } else {
+            if (!$model->save(false)) {
                 Yii::$app->session->setFlash(
                     'error',
-                    'Unable to record the transaction.'
+                    'Unable to save the payment transaction.'
+                );
+
+                return $this->redirect(['index']);
+            }
+
+            try {
+                // Get the callback URL from the application configuration.
+                $callbackUrl = Yii::$app->params['mpesa']['callbackUrl'];
+
+                // Create the M-Pesa service.
+                $mpesa = new \app\services\MpesaService();
+
+                // Send the STK Push request.
+                $response = $mpesa->initiateStkPush(
+                    $model->phone_number,
+                    $model->amount,
+                    'MPESA',
+                    'Payment',
+                    $callbackUrl
+                );
+
+                // Check Safaricom's response.
+                if (
+                    isset($response['ResponseCode']) &&
+                    (string) $response['ResponseCode'] === '0' &&
+                    !empty($response['CheckoutRequestID'])
+                ) {
+                    // Store Safaricom request identifiers.
+                    $model->merchant_request_id =
+                        $response['MerchantRequestID'] ?? null;
+
+                    $model->checkout_request_id =
+                        $response['CheckoutRequestID'];
+
+                    $model->result_description =
+                        $response['CustomerMessage'] ??
+                        'STK Push request sent successfully.';
+
+                    $model->save(false);
+
+                    Yii::$app->session->setFlash(
+                        'success',
+                        'STK Push request sent. Check the payment status shortly.'
+                    );
+
+                } else {
+                    // Safaricom rejected the request.
+                    $model->status = MpesaTransactions::STATUS_FAILED;
+
+                    $model->result_code =
+                        $response['ResponseCode'] ?? null;
+
+                    $model->result_description =
+                        $response['errorMessage'] ??
+                        $response['ResponseDescription'] ??
+                        'STK Push request was unsuccessful.';
+
+                    $model->save(false);
+
+                    Yii::$app->session->setFlash(
+                        'error',
+                        $model->result_description
+                    );
+                }
+
+            } catch (\Throwable $e) {
+
+                // Record the error for troubleshooting.
+                Yii::error($e->getMessage(), __METHOD__);
+
+                $model->status = MpesaTransactions::STATUS_FAILED;
+                $model->result_description = $e->getMessage();
+                $model->save(false);
+
+                Yii::$app->session->setFlash(
+                    'error',
+                    'M-Pesa request failed: ' . $e->getMessage()
                 );
             }
 
         } else {
             Yii::$app->session->setFlash(
                 'error',
-                'Please enter a valid phone number and payment amount.'
+                'Please enter a valid phone number and amount.'
             );
         }
 

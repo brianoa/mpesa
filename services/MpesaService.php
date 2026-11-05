@@ -13,7 +13,7 @@ class MpesaService extends Component
      */
     private function getMpesaConfig()
     {
-        $configFile = Yii::getAlias('@app/config/params-local.php');
+        $configFile = Yii::getAlias('@app/config/params.php');
 
         if (!file_exists($configFile)) {
             throw new Exception('M-Pesa configuration file was not found.');
