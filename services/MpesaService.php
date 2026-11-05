@@ -176,4 +176,82 @@ class MpesaService extends Component
 
         return $result;
     }
+
+    
+    /**
+     * Query the status of an existing STK Push transaction.
+     */
+    public function queryStkPush($checkoutRequestId)
+    {
+        $mpesa = $this->getMpesaConfig();
+
+        if (empty($checkoutRequestId)) {
+            throw new Exception('Checkout Request ID is required.');
+        }
+
+        // Generate current timestamp using Kenya time.
+        $timestamp = (new \DateTime(
+            'now',
+            new \DateTimeZone('Africa/Nairobi')
+        ))->format('YmdHis');
+
+        // Generate STK Push password.
+        $password = base64_encode(
+            $mpesa['shortcode'] .
+            $mpesa['passkey'] .
+            $timestamp
+        );
+
+        // Obtain Safaricom access token.
+        $accessToken = $this->getAccessToken();
+
+        // Safaricom Sandbox STK Query endpoint.
+        $url = 'https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query';
+
+        $payload = [
+            'BusinessShortCode' => $mpesa['shortcode'],
+            'Password' => $password,
+            'Timestamp' => $timestamp,
+            'CheckoutRequestID' => $checkoutRequestId,
+        ];
+
+        $curl = curl_init($url);
+
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $accessToken,
+            ],
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT => 30,
+        ]);
+
+        $response = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($curl);
+
+        curl_close($curl);
+
+        if ($response === false) {
+            throw new Exception(
+                'STK Query connection failed: ' . $curlError
+            );
+        }
+
+        $result = json_decode($response, true);
+
+        if ($httpCode !== 200 || !is_array($result)) {
+            throw new Exception(
+                'STK Query failed. HTTP status: ' . $httpCode . 
+                '. Response: ' . $response
+            );
+        }
+
+        return $result;
+    }
+
 }

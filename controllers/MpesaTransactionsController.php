@@ -442,4 +442,64 @@ class MpesaTransactionsController extends Controller
             ];
         }
     }
+
+    
+    /**
+     * Verify a pending M-Pesa transaction with Safaricom.
+     */
+    public function actionVerify($id)
+    {
+        $transaction = $this->findModel($id);
+
+        // Only pending transactions can be queried.
+        if ($transaction->status !== MpesaTransactions::STATUS_PENDING) {
+            Yii::$app->session->setFlash(
+                'info',
+                'Only pending transactions can be verified.'
+            );
+
+            return $this->redirect(['index']);
+        }
+
+        // A CheckoutRequestID is required.
+        if (empty($transaction->checkout_request_id)) {
+            Yii::$app->session->setFlash(
+                'error',
+                'This transaction has no Checkout Request ID.'
+            );
+
+            return $this->redirect(['index']);
+        }
+
+        try {
+            $mpesa = new \app\services\MpesaService();
+
+            $response = $mpesa->queryStkPush(
+                $transaction->checkout_request_id
+            );
+
+            Yii::info(
+                'STK Query response for transaction ' . $id . ': ' .
+                json_encode($response),
+                __METHOD__
+            );
+
+            Yii::$app->session->setFlash(
+                'success',
+                'Safaricom verification response received. Check the application logs before changing the transaction status.'
+            );
+
+        } catch (\Throwable $e) {
+
+            Yii::error($e->getMessage(), __METHOD__);
+
+            Yii::$app->session->setFlash(
+                'error',
+                'Unable to verify transaction: ' . $e->getMessage()
+            );
+        }
+
+        return $this->redirect(['index']);
+    }
+
 }
