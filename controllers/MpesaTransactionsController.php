@@ -208,4 +208,113 @@ class MpesaTransactionsController extends Controller
             ]);
         }
     }
+
+    public function beforeAction($action)
+    {
+        if ($action->id === 'callback') {
+            $this->enableCsrfValidation = false;
+        }
+
+        return parent::beforeAction($action);
+    }
+
+
+    public function actionCallback()
+    {
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        try {
+            $rawBody = Yii::$app->request->getRawBody();
+            $data = json_decode($rawBody, true);
+
+            $callback = $data['Body']['stkCallback'] ?? null;
+
+            if (!$callback || !isset($callback['CheckoutRequestID'])) {
+                Yii::error('Invalid M-Pesa callback: ' . $rawBody, __METHOD__);
+
+                return [
+                    'ResultCode' => 1,
+                    'ResultDesc' => 'Invalid callback data',
+                ];
+            }
+
+            $checkoutRequestId = $callback['CheckoutRequestID'];
+
+            $transaction = MpesaTransactions::findOne([
+                'checkout_request_id' => $checkoutRequestId,
+            ]);
+
+            if (!$transaction) {
+                Yii::error(
+                    'Transaction not found for CheckoutRequestID: ' . $checkoutRequestId,
+                    __METHOD__
+                );
+
+                return [
+                    'ResultCode' => 1,
+                    'ResultDesc' => 'Transaction not found',
+                ];
+            }
+
+            $resultCode = $callback['ResultCode'] ?? null;
+            $resultDescription = $callback['ResultDesc'] ?? 'No description provided';
+
+            $transaction->result_code = $resultCode;
+            $transaction->result_description = $resultDescription;
+            $transaction->merchant_request_id =
+                $callback['MerchantRequestID'] ?? $transaction->merchant_request_id;
+
+            if ((string)$resultCode === '0') {
+
+                $transaction->setStatusToSuccess();
+
+                $metadata = $callback['CallbackMetadata']['Item'] ?? [];
+
+                foreach ($metadata as $item) {
+                    if (!isset($item['Name'])) {
+                        continue;
+                    }
+
+                    if ($item['Name'] === 'MpesaReceiptNumber') {
+                        $transaction->mpesa_receipt_number = $item['Value'] ?? null;
+                    }
+
+                    if ($item['Name'] === 'Amount') {
+                        $transaction->amount = $item['Value'] ?? $transaction->amount;
+                    }
+                }
+
+            } else {
+                $transaction->setStatusToFailed();
+            }
+
+            $transaction->updated_at = date('Y-m-d H:i:s');
+
+            if (!$transaction->save(false)) {
+                Yii::error(
+                    'Unable to update transaction: ' . $checkoutRequestId,
+                    __METHOD__
+                );
+
+                return [
+                    'ResultCode' => 1,
+                    'ResultDesc' => 'Unable to update transaction',
+                ];
+            }
+
+            return [
+                'ResultCode' => 0,
+                'ResultDesc' => 'Callback processed successfully',
+            ];
+
+        } catch (\Throwable $e) {
+
+            Yii::error($e->getMessage(), __METHOD__);
+
+            return [
+                'ResultCode' => 1,
+                'ResultDesc' => 'Callback processing failed',
+            ];
+        }
+    }
 }
