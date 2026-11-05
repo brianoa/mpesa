@@ -329,6 +329,22 @@ class MpesaTransactionsController extends Controller
                 ];
             }
 
+            // Prevent duplicate processing of completed transactions.
+            if (
+                $transaction->status === MpesaTransactions::STATUS_SUCCESS ||
+                $transaction->status === MpesaTransactions::STATUS_FAILED
+            ) {
+                Yii::info(
+                    'Duplicate callback ignored for CheckoutRequestID: ' . $checkoutRequestId,
+                    __METHOD__
+                );
+
+                return [
+                    'ResultCode' => 0,
+                    'ResultDesc' => 'Transaction already processed',
+                ];
+            }
+
             $resultCode = $callback['ResultCode'] ?? null;
             $resultDescription = $callback['ResultDesc'] ?? 'No description provided';
 

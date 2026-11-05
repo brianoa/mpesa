@@ -12,7 +12,7 @@ return [
     'shortcode' => '174379',
     'passkey' => 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
     'environment' => 'sandbox',
-    'callbackUrl' => 'https://8794-196-216-85-229.ngrok-free.app/mpesa-transactions/callback',
+    'callbackUrl' => 'https://7f33-105-164-128-157.ngrok-free.app/mpesa-transactions/callback',
 ],
 ];
 
