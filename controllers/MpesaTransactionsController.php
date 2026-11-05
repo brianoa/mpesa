@@ -2,6 +2,7 @@
 
 namespace app\controllers;
 
+use Yii;
 use app\models\MpesaTransactions;
 use app\models\MpesaTransactionsSearch;
 use yii\web\Controller;
@@ -41,10 +42,62 @@ class MpesaTransactionsController extends Controller
         $searchModel = new MpesaTransactionsSearch();
         $dataProvider = $searchModel->search($this->request->queryParams);
 
+        $model = new MpesaTransactions();
+
+        $successful = MpesaTransactions::find()
+            ->where(['status' => MpesaTransactions::STATUS_SUCCESS])
+            ->count();
+
+        $pending = MpesaTransactions::find()
+            ->where(['status' => MpesaTransactions::STATUS_PENDING])
+            ->count();
+
+        $failed = MpesaTransactions::find()
+            ->where(['status' => MpesaTransactions::STATUS_FAILED])
+            ->count();
+
+
         return $this->render('index', [
             'searchModel' => $searchModel,
             'dataProvider' => $dataProvider,
+            'model' => $model,
+            'successful' => $successful,
+            'pending' => $pending,
+            'failed' => $failed,
         ]);
+    }
+    /**
+     * Record a payment request.
+     * STK Push will be connected in the next stage.
+     */
+    public function actionPay()
+    {
+        $model = new MpesaTransactions();
+
+        if ($model->load(Yii::$app->request->post()) && $model->validate()) {
+
+            $model->setStatusToPending();
+
+            if ($model->save(false)) {
+                Yii::$app->session->setFlash(
+                    'success',
+                    'Payment request recorded successfully. STK Push integration is our next step.'
+                );
+            } else {
+                Yii::$app->session->setFlash(
+                    'error',
+                    'Unable to record the transaction.'
+                );
+            }
+
+        } else {
+            Yii::$app->session->setFlash(
+                'error',
+                'Please enter a valid phone number and payment amount.'
+            );
+        }
+
+        return $this->redirect(['index']);
     }
 
     /**
