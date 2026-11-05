@@ -355,27 +355,63 @@ class MpesaTransactionsController extends Controller
 
             if ((string)$resultCode === '0') {
 
-                $transaction->setStatusToSuccess();
+            $metadata = $callback['CallbackMetadata']['Item'] ?? [];
 
-                $metadata = $callback['CallbackMetadata']['Item'] ?? [];
+            $callbackAmount = null;
+            $receiptNumber = null;
 
-                foreach ($metadata as $item) {
-                    if (!isset($item['Name'])) {
-                        continue;
-                    }
+            foreach ($metadata as $item) {
 
-                    if ($item['Name'] === 'MpesaReceiptNumber') {
-                        $transaction->mpesa_receipt_number = $item['Value'] ?? null;
-                    }
-
-                    if ($item['Name'] === 'Amount') {
-                        $transaction->amount = $item['Value'] ?? $transaction->amount;
-                    }
+                if (!isset($item['Name'])) {
+                    continue;
                 }
 
-            } else {
-                $transaction->setStatusToFailed();
+                if ($item['Name'] === 'Amount') {
+                    $callbackAmount = $item['Value'] ?? null;
+                }
+
+                if ($item['Name'] === 'MpesaReceiptNumber') {
+                    $receiptNumber = $item['Value'] ?? null;
+                }
             }
+
+            // Verify the amount confirmed by Safaricom.
+            if (
+                $callbackAmount === null ||
+                (float)$callbackAmount !== (float)$transaction->amount
+            ) {
+                Yii::error(
+                    'M-Pesa amount mismatch for CheckoutRequestID: ' .
+                    $checkoutRequestId,
+                    __METHOD__
+                );
+
+                return [
+                    'ResultCode' => 1,
+                    'ResultDesc' => 'Payment amount verification failed',
+                ];
+            }
+
+            // Verify receipt number exists.
+            if (empty($receiptNumber)) {
+                Yii::error(
+                    'Missing M-Pesa receipt number: ' . $checkoutRequestId,
+                    __METHOD__
+                );
+
+                return [
+                    'ResultCode' => 1,
+                    'ResultDesc' => 'Missing M-Pesa receipt number',
+                ];
+            }
+
+            $transaction->mpesa_receipt_number = $receiptNumber;
+            $transaction->setStatusToSuccess();
+
+        } else {
+
+            $transaction->setStatusToFailed();
+        }
 
             $transaction->updated_at = date('Y-m-d H:i:s');
 
