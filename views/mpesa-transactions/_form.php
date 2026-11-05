@@ -1,3 +1,4 @@
+
 <?php
 
 use yii\helpers\Html;
@@ -12,28 +13,29 @@ use yii\widgets\ActiveForm;
 
     <?php $form = ActiveForm::begin(); ?>
 
-    <?= $form->field($model, 'phone_number')->textInput(['maxlength' => true]) ?>
+    <div class="row">
 
-    <?= $form->field($model, 'amount')->textInput(['maxlength' => true]) ?>
+        <div class="col-md-6">
+            <?= $form->field($model, 'phone_number')->textInput([
+                'maxlength' => true,
+                'placeholder' => '254712345678',
+            ]) ?>
+        </div>
 
-    <?= $form->field($model, 'merchant_request_id')->textInput(['maxlength' => true]) ?>
+        <div class="col-md-6">
+            <?= $form->field($model, 'amount')->input('number', [
+                'min' => 1,
+                'step' => 1,
+                'placeholder' => 'Enter amount in KSh',
+            ]) ?>
+        </div>
 
-    <?= $form->field($model, 'checkout_request_id')->textInput(['maxlength' => true]) ?>
-
-    <?= $form->field($model, 'mpesa_receipt_number')->textInput(['maxlength' => true]) ?>
-
-    <?= $form->field($model, 'result_code')->textInput(['maxlength' => true]) ?>
-
-    <?= $form->field($model, 'result_description')->textarea(['rows' => 6]) ?>
-
-    <?= $form->field($model, 'status')->dropDownList([ 'PENDING' => 'PENDING', 'SUCCESS' => 'SUCCESS', 'FAILED' => 'FAILED', ], ['prompt' => '']) ?>
-
-    <?= $form->field($model, 'created_at')->textInput() ?>
-
-    <?= $form->field($model, 'updated_at')->textInput() ?>
+    </div>
 
     <div class="form-group">
-        <?= Html::submitButton('Save', ['class' => 'btn btn-success']) ?>
+        <?= Html::submitButton('Save Transaction', [
+            'class' => 'btn btn-success'
+        ]) ?>
     </div>
 
     <?php ActiveForm::end(); ?>
