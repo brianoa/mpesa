@@ -184,4 +184,28 @@ class MpesaTransactionsController extends Controller
 
         throw new NotFoundHttpException('The requested page does not exist.');
     }
+
+    public function actionTestConnection()
+    {
+        try {
+            $mpesa = new \app\services\MpesaService();
+
+            $token = $mpesa->getAccessToken();
+
+            return $this->asJson([
+                'success' => true,
+                'message' => 'Successfully connected to Safaricom Daraja Sandbox.',
+                'token_received' => !empty($token),
+            ]);
+
+        } catch (\Throwable $e) {
+
+            Yii::error($e->getMessage(), __METHOD__);
+
+            return $this->asJson([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
 }
